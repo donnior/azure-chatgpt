@@ -4,23 +4,22 @@ import type { ChatMessage } from '@/types'
 
 const model = import.meta.env.OPENAI_API_MODEL || 'gpt-3.5-turbo'
 
-export const generatePayload = (apiKey: string, messages: ChatMessage[]): RequestInit & { dispatcher?: any } => ({
+export const generatePayload = (apiKey: string, messages: ChatMessage[]): any => ({
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${apiKey}`,
+    'api-key': `${apiKey}`,
   },
   method: 'POST',
   body: JSON.stringify({
-    model,
-    messages,
-    temperature: 0.6,
-    stream: true,
+    messages: messages,
+    stream: true
   }),
 })
 
 export const parseOpenAIStream = (rawResponse: Response) => {
   const encoder = new TextEncoder()
   const decoder = new TextDecoder()
+  console.log('res', rawResponse)
   if (!rawResponse.ok) {
     return new Response(rawResponse.body, {
       status: rawResponse.status,
@@ -33,6 +32,7 @@ export const parseOpenAIStream = (rawResponse: Response) => {
       const streamParser = (event: ParsedEvent | ReconnectInterval) => {
         if (event.type === 'event') {
           const data = event.data
+          console.log("data", data)
           if (data === '[DONE]') {
             controller.close()
             return
@@ -48,9 +48,14 @@ export const parseOpenAIStream = (rawResponse: Response) => {
             //   ],
             // }
             const json = JSON.parse(data)
+            // console.log("data", data)
             const text = json.choices[0].delta?.content || ''
             const queue = encoder.encode(text)
             controller.enqueue(queue)
+            if (json.choices[0].finish_reason === 'stop') {
+              controller.close()
+              return 
+            }
           } catch (e) {
             controller.error(e)
           }
